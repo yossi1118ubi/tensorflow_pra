@@ -31,6 +31,8 @@ import android.util.Size;
 import android.util.TypedValue;
 import android.widget.Toast;
 import java.io.IOException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.LinkedList;
 import java.util.List;
 import org.tensorflow.lite.examples.detection.customview.OverlayView;
@@ -41,6 +43,32 @@ import org.tensorflow.lite.examples.detection.env.Logger;
 import org.tensorflow.lite.examples.detection.tflite.Classifier;
 import org.tensorflow.lite.examples.detection.tflite.TFLiteObjectDetectionAPIModel;
 import org.tensorflow.lite.examples.detection.tracking.MultiBoxTracker;
+import android.os.Bundle;
+import android.os.Bundle;
+import android.Manifest;
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.renderscript.ScriptGroup;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * An activity that uses a TensorFlowMultiBoxDetector and ObjectTracker to detect and then track
@@ -70,6 +98,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
   private Bitmap rgbFrameBitmap = null;
   private Bitmap croppedBitmap = null;
   private Bitmap cropCopyBitmap = null;
+  private Bitmap mSourceBitmap = null;
 
   private boolean computingDetection = false;
 
@@ -81,6 +110,18 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
   private MultiBoxTracker tracker;
 
   private BorderedText borderedText;
+
+
+
+  //保存するファイル名
+  private String fileName;
+  private String fileNamebase = "face_picture_";
+  //intをstringにするときは, String.valueoOf(int)を利用する
+  private String fileType = ".jpg";
+  private int fileNameCounter = 0;
+  //  File path = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+  private int REQUEST_PERMISSION = 1000;
+
 
   @Override
   public void onPreviewSizeChosen(final Size size, final int rotation) {
@@ -179,9 +220,13 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
             LOGGER.i("Running detection on image " + currTimestamp);
             final long startTime = SystemClock.uptimeMillis();
             final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap);
+            System.out.println("%%%%%%%%%%%" + results);
             lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
 
             cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
+            mSourceBitmap = Bitmap.createBitmap(cropCopyBitmap);
+
+
             final Canvas canvas = new Canvas(cropCopyBitmap);
             final Paint paint = new Paint();
             paint.setColor(Color.RED);
@@ -199,6 +244,11 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                 new LinkedList<Classifier.Recognition>();
 
             for (final Classifier.Recognition result : results) {
+              float left = result.getLocation().left;
+              float top = result.getLocation().top;
+              float right = result.getLocation().right;
+              float bottom = result.getLocation().bottom;
+
               final RectF location = result.getLocation();
               if (location != null && result.getConfidence() >= minimumConfidence) {
                 canvas.drawRect(location, paint);
@@ -207,6 +257,90 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
                 result.setLocation(location);
                 mappedRecognitions.add(result);
+                //このへんでpresonなら切り取って出力みたいなことをしたい
+                //結果のtextはどこに入っているんだ?
+                System.out.println("&&&&&&&"+result.getTitle());
+                //stringの比較は"=="じゃだめ, あとで直す
+               //if(result.getTitle() == "bottle"){
+                 if(result.getTitle().equals("person")){
+                   float SMALLER = 0.950f;
+                   System.out.println("SMARER>>" + SMALLER);
+//                   float left = location.left;
+//                   float top = result.getLocation().top;
+//                   float right = result.getLocation().right;
+//                   float bottom = result.getLocation().bottom;
+
+                   System.out.println(left);
+                   System.out.println(top);
+                   System.out.println(right);
+                   System.out.println(bottom);
+                   float CUNNUM = 290f;
+                   if(left > 1 && left < CUNNUM && top > 1 && top < CUNNUM && right < CUNNUM && bottom <CUNNUM) {
+
+                     System.out.println(left);
+                     System.out.println(top);
+                     System.out.println(right);
+                     System.out.println(bottom);
+                     left = left * SMALLER;
+                     top = top * SMALLER;
+                     System.out.println("SMARAL" + left);
+                     System.out.println("SMARAL" + top);
+                     if (left < 1.0) {
+                       left = 1;
+                     }
+                     if (top < 1.0) {
+                       top = 1;
+                     }
+                     if (right > 300.0) {
+                       right = 299;
+                     }
+                     if (bottom > 300.0) {
+                       bottom = 299;
+                     }
+
+                     System.out.println(left);
+                     System.out.println(top);
+                     System.out.println(right);
+                     System.out.println(bottom);
+
+
+                     right = right * SMALLER;
+                     bottom = bottom * SMALLER;
+
+                     System.out.println(left);
+                     System.out.println(top);
+                     System.out.println(right);
+                     System.out.println(bottom);
+                     //トリミングコード
+                     int nWidth = (int) (right - left);
+                     int nHeight = (int) (bottom - top);
+                     int startX = (int) (left + 15);
+                     int startY = (int) top + 15;
+
+                     System.out.println("nWidth:" + nWidth);
+                     System.out.println(nHeight);
+                     System.out.println(startX);
+                     System.out.println(startY);
+                     System.out.println("##before");
+                     //mSourceBitmap = croppedBitmap.createBitmap(mSourceBitmap, nWidth, nHeight, startX, startY,null,true);
+                     mSourceBitmap = croppedBitmap.createBitmap(mSourceBitmap, startX, startY, nWidth,nHeight, null, true);
+                     System.out.println("##after");
+
+                     //保存するためのコード
+                     fileNameCounter++;
+                     File path = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+                     fileName = fileNamebase + String.valueOf(fileNameCounter) + fileType;
+                     File file = new File(path, fileName);
+
+                     //Android23以上のときはパーミション確認
+                     if (Build.VERSION.SDK_INT >= 23) {
+                       checkPermission1();
+                     }
+                     saveFileMethod(file, mSourceBitmap);
+
+                     //ここまで保存するコード
+                   }
+               }
               }
             }
 
@@ -253,4 +387,81 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
   protected void setNumThreads(final int numThreads) {
     runInBackground(() -> detector.setNumThreads(numThreads));
   }
+
+  // permissionの確認
+  public void checkPermission1() {
+    // 既に許可している
+    if (ActivityCompat.checkSelfPermission(this,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            == PackageManager.PERMISSION_GRANTED){
+      //setUpWriteExternalStorage();
+    }
+    // 拒否していた場合
+    else{
+      requestLocationPermission();
+    }
+  }
+
+  // 許可を求める
+  private void requestLocationPermission() {
+    if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+      //もしかしたら, Savefileの部分が違っているかも
+      ActivityCompat.requestPermissions(DetectorActivity.this,
+              new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+              REQUEST_PERMISSION);
+    } else {
+      Toast toast = Toast.makeText(this, "許可してください", Toast.LENGTH_SHORT);
+      toast.show();
+
+      ActivityCompat.requestPermissions(this,
+              new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE,},
+              REQUEST_PERMISSION);
+    }
+  }
+
+  // 結果の受け取り
+  @Override
+  public void onRequestPermissionsResult(
+          int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    if (requestCode == REQUEST_PERMISSION) {
+      // 使用が許可された
+      if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        //setUpWriteExternalStorage();
+      } else {
+        // それでも拒否された時の対応
+        Toast toast = Toast.makeText(this, "何もできません", Toast.LENGTH_SHORT);
+        toast.show();
+      }
+    }
+  }
+  // アンドロイドのデータベースへ登録する
+  private void registerDatabase(File file) {
+    ContentValues contentValues = new ContentValues();
+    ContentResolver contentResolver = DetectorActivity.this.getContentResolver();
+    contentValues.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+    contentValues.put("_data", file.getAbsolutePath());
+    contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            contentValues);
+  }
+
+  public void saveFileMethod(File file, Bitmap bitmap) {
+    if (bitmap != null) {
+      try {
+        FileOutputStream output = new FileOutputStream(file);
+        registerDatabase(file);
+        bitmap.compress(Bitmap.CompressFormat.JPEG,100,output);
+        System.out.println("OKOKOKOKOKOKO");
+        System.out.println(fileName);
+      } catch (IOException e) {
+        e.printStackTrace();
+      }
+    }
+    else{
+      System.out.println("#####: bitmapがnullです");
+    }
+  }
+
+
+
 }
